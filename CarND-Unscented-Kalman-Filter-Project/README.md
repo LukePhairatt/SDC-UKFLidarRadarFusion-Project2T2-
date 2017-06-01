@@ -1,9 +1,11 @@
 # **Unscented Kalman Filter(UKF) Project-2 Term-2**
 Self-Driving Car Engineer Nanodegree Program
 ![alt text][image0]
+![alt text][image1]
 
 [//]: # (Image References)
 [image0]: ./Docs/ukf_xy.png "xy result"
+[image1]: ./Docs/RunAwayRobot.png "Runaway Robot"
 [source1]: ./data/PathVis_in.py "log input check"
 [source2]: ./data/PathVis_out.py "log output check"
 
@@ -42,8 +44,10 @@ Passing the project requires obtaining RMSE values that are lower that the toler
 
 
 ### Additional Resources ###
+* Chasing the runaway target, see **bonus_challenge** folder for implementation  
 * PathVis_in.py: Analyse the input log file for the object positions, speeds, and accelerations [here][source1]  
-* PathVis_out.py: Analyse the output log file after running the UKF for Normalised Innovation Error and Path [here][source2]
-* Eclipse project: see ide_eclipse for further instruction
+* PathVis_out.py: Analyse the output log file after running the UKF for Normalised Innovation Error and Path [here][source2]  
+* Eclipse project: see **ide_eclipse** folder for further instructions  
+
 
 

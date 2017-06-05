@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <functional>   // std::bind
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -24,12 +25,11 @@ public:
   ///* if this is false, radar measurements will be ignored (except for init)
   bool use_radar_;
 
-  ///* state vector (target object): [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
+  ///* state vector: [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
   VectorXd x_;
 
-  ///* state covariance matrix: (target object)
+  ///* state covariance matrix
   MatrixXd P_;
-  
 
   ///* predicted sigma points matrix
   MatrixXd Xsig_pred_;
@@ -75,6 +75,18 @@ public:
 
   ///* the current NIS for laser
   double NIS_laser_;
+
+  ///* Radar measurement length
+  int nz_radar_;
+
+  ///* Lidar measurement length
+  int nz_lidar_;
+
+  ///* Radar measurement noise covariance matrix
+  MatrixXd R_radar_;
+
+  ///* Lidar measurement noise covariance matrix
+  MatrixXd R_lidar_;
   
   ///* state vector (set target way points for a hunter to chase): [pos1 pos2] in SI units and rad
   VectorXd xt_;
@@ -84,7 +96,7 @@ public:
   
   ///* look ahead time step
   double time_lookahead_;
-  
+
 
   /**
    * Constructor
@@ -104,34 +116,42 @@ public:
 
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
-   * matrix
    * @param delta_t Time between k and k+1 in s
    */
   void Prediction(const double delta_t);
 
   /**
-   * Updates the state and the state covariance matrix using a laser measurement
-   * @param meas_package The measurement at k+1
+   * Updates the state and the state covariance
+   * @param The measurement at k+1, measurement size, Covariance Noise, update function
    */
-  void UpdateLidar(const MeasurementPackage &meas_package);
+  double UpdateMeasurements(const MeasurementPackage &meas_package, int n_z, const MatrixXd& R, \
+		  std::function<double (const MeasurementPackage& meas_package, int index, const MatrixXd& Xsig_pred, MatrixXd& Zsig)> mapping_func);
 
   /**
-   * Updates the state and the state covariance matrix using a radar measurement
-   * @param meas_package The measurement at k+1
+   * Compute measurement sigma points using a lidar measurement, mapping the state to the measurement space
+   *
    */
-  void UpdateRadar(const MeasurementPackage &meas_package);
+  double LidarMeasurementMapping(const MeasurementPackage& meas_package, int index, const MatrixXd& Xsig_pred, MatrixXd& Zsig);
 
   /**
-   * Updates the state and the state covariance matrix using a radar measurement
-   * @param input: measurement sigma points, measurement noise, measurement The measurement at k+1
+   * Compute measurement sigma points using a radar measurement, mapping the state to the measurement space
+   *
+   */
+  double RadarMeasurementMapping(const MeasurementPackage& meas_package, int index, const MatrixXd& Xsig_pred, MatrixXd& Zsig);
+
+  /**
+   * Compute measurement covariance matrix S and cross correlation Tc and State correction
+   * @param input: measurement sigma points, measurement noise, and actual measurements
    *        output: NIS
   */
   double UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorXd &z);
   
-  
-  
+  /**
+ * Setting the chasing the target point
+ * @param look ahead time
+ * 
+ */
   void SetTargetPoint(const double timestep);
-
 };
 
 #endif /* UKF_H */

@@ -10,9 +10,20 @@ using std::vector;
 using namespace std::placeholders;
 
 /**
+ * Notes:
+ *    The stop predicting and updating, when the target has not been moving
+ *    for a while (or move in very small distance), has not been implemented 
+ *    in this project
+ * */
+
+
+/**
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+  // ukf data initialisation flag
+  is_initialized_ = false;
+  	
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -81,11 +92,13 @@ UKF::UKF() {
   ///* radar measurement size
   nz_radar_ = 3;
 
-  // Radar measurement noise covariance matrix
+  ///* Radar measurement noise covariance matrix
   R_radar_ = MatrixXd(nz_radar_,nz_radar_);
 
-  // Lidar measurement noise covariance matrix
+  ///* Lidar measurement noise covariance matrix
   R_lidar_ = MatrixXd(nz_lidar_,nz_lidar_);
+  
+
 
 }
 
@@ -107,23 +120,35 @@ void UKF::ProcessMeasurement(const MeasurementPackage &meas_package) {
 
   // init state from the first measurement
   if(!is_initialized_){
+	  
+	  cout << "Init UKF" << endl;
 	  if(!use_radar_ && !use_laser_){
 		  cout << "Error, you must define one source of measurement!" << endl;
 		  exit(-1);
 	  }
 
+      double ix = 0.0;
+      double iy = 0.0;
 	  // State vector
 	  if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
-		  double ix = meas_package.raw_measurements_[0] * cos(meas_package.raw_measurements_[1]);
-		  double iy = meas_package.raw_measurements_[0] * sin(meas_package.raw_measurements_[1]);
-		  x_ << ix,iy,0,0,0;
+		  // radar measurement rho, theta
+		  ix = meas_package.raw_measurements_[0] * cos(meas_package.raw_measurements_[1]);
+		  iy = meas_package.raw_measurements_[0] * sin(meas_package.raw_measurements_[1]);  
 	  }
       else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
-    	  x_ << meas_package.raw_measurements_[0],meas_package.raw_measurements_[1],0,0,0;
+		  // lidar measurement x,y
+		  ix = meas_package.raw_measurements_[0];
+		  iy = meas_package.raw_measurements_[1];
+		  
 	  }
       else{
     	  cout << "Undefined measurement data" << endl;
 	  }
+	  
+	  // SAFETY CHECK: nonsense x,y data e.g. object is at the same place at the sensor location
+	  ( fabs(ix) < 0.001 && fabs(iy) < 0.001 ) ? ix=0.001,iy=0.001:false;
+	  // init data
+      x_ << ix,iy,0,0,0;
 
 	  // Covariance P (no information about speed,angle,angular speed yet so set it high first time)
 	  P_ << 0.01, 0,    0,    0,    0,
@@ -160,8 +185,22 @@ void UKF::ProcessMeasurement(const MeasurementPackage &meas_package) {
   // Process prediction
   double dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
   // Record this time stamp for the next cycle
-  time_us_ = meas_package.timestamp_;
-  Prediction(dt);
+  time_us_ = meas_package.timestamp_;  
+  
+  // SYSTEM STABILITY DUE TO A TIME STEP SIZE
+  // SAFETY CHECK - really big update time step
+  // This code will divide a big step prediction to predict a smaller chunck a time
+  while (dt > 0.1)   
+  {
+      double step = 0.05;   
+      Prediction(step);
+      dt -= step;
+  }
+  // update the remaining dt, skip it if too small to bother
+  // or sometime lidar or radar coming the same time dt = 0
+  if (dt > 0.001){
+    Prediction(dt);
+  }
 
   // Radar/Lidar state correction
   if (meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_){
@@ -313,6 +352,11 @@ void UKF::Prediction(const double delta_t) {
   // copy state and covariance
   x_ = x;
   P_ = P;
+  
+  // debug prediction state (sometime we get 'nan' after a big number start to divert)
+  // Fixed by iterate prediction
+  //cout << "px = " << x[0] << "  " << "py = " << x[1] << " " << "v = " << x[2] \
+  // << "  " << "theta = " << x[3] << " " << "theta_d = "  << x[4] << endl;
 
 }// end Prediction
 
@@ -379,21 +423,19 @@ double UKF::RadarMeasurementMapping(const MeasurementPackage& meas_package, cons
 
 	  double vx = v*cos(yaw);
 	  double vy = v*sin(yaw);
-
+	  
+	  // SAFETY CHECK: Avoid near zero px,py instability 
+	  // division by zero and atan2 domain error 
+	  if (fabs(px) < DIV_ZERO_TOL_){
+	    px = DIV_ZERO_TOL_;
+	  }
+	  if (fabs(py) < DIV_ZERO_TOL_){
+	    py = DIV_ZERO_TOL_;
+      }
+	  
 	  double rho = sqrt(px*px + py*py);
 	  double theta = atan2(py,px);
-	  double rho_dot;
-	  if(rho < DIV_ZERO_TOL_){
-	    // This will happen we the target goes near the radar or the target
-		// starting/passing at 0,0 point
-	    // To solve this, we either skip this update or use tolerance
-		rho_dot = DIV_ZERO_TOL_;
-		//rho_dot = vx*cos(theta) + vy*sin(theta);
-		//cout << "Measurement distance near zero" << rho_dot << endl;
-	  }
-	  else{
-	    rho_dot = (px*vx + py*vy)/rho;
-	  }//end if
+	  double rho_dot = (px*vx + py*vy)/rho;
 
 	  Zsig(0,i) = rho;
 	  Zsig(1,i) = theta;

@@ -146,12 +146,19 @@ public:
   */
   double UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorXd &z);
   
-  /**
+ /**
  * Setting the chasing the target point
  * @param look ahead time
  * 
  */
   void SetTargetPoint(const double timestep);
+  
+  /**
+  * Convert angle to -pi to +pi range
+  * @param input: radian angle
+  */
+  double NormaliseAngle(double theta);
+  
 };
 
 #endif /* UKF_H */

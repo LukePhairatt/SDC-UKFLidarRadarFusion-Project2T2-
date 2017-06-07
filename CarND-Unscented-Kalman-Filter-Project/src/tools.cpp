@@ -1,10 +1,10 @@
 #include <iostream>
 #include "tools.h"
 
-using Eigen::VectorXd;
-using Eigen::MatrixXd;
-using std::vector;
-using namespace std;
+//using Eigen::VectorXd;
+//using Eigen::MatrixXd;
+//using std::vector;
+//using namespace std;
 
 Tools::Tools() {}
 

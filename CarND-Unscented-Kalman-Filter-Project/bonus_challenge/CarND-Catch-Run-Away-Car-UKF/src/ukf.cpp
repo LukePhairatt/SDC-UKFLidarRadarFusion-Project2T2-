@@ -28,10 +28,10 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // (required experimenting) Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.07;
+  std_a_ = 0.31;//0.41;
 
   // (required experimenting) Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.09;
+  std_yawdd_ = 0.33;//0.75;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -63,7 +63,7 @@ UKF::UKF() {
   n_aug_ = 7;
 
   ///* Sigma point spreading parameter (will be changed later)
-  lambda_ = 0;
+  lambda_ = 3 - n_aug_;
 
   ///* NIS for radar
   NIS_radar_ = 0.0;
@@ -115,6 +115,7 @@ void UKF::ProcessMeasurement(const MeasurementPackage &meas_package) {
 
   // init state from the first measurement
   if(!is_initialized_){
+	  cout << "init UKF" << endl;
 	  if(!use_radar_ && !use_laser_){
 		  cout << "Error, you must define one source of measurement!" << endl;
 		  exit(-1);
@@ -146,12 +147,11 @@ void UKF::ProcessMeasurement(const MeasurementPackage &meas_package) {
 	  // Covariance P (no information about speed,angle,angular speed yet so set it high first time)
 	  P_ << 0.02, 0,    0,    0,    0,
 	  	    0,    0.02, 0,    0,    0,
-	  	    0,    0,    5.0,  0,    0,
-	  	    0,    0,    0,    2.0,  0,
-			0,    0,    0,    0,    0.2;
+	  	    0,    0,    10.0, 0,    0,
+	  	    0,    0,    0,    10.0, 0,
+			0,    0,    0,    0,    0.1;
 
 	  // set weights
-	  lambda_ = 3 - n_aug_;
 	  double weight_0 = lambda_/(lambda_+n_aug_);
 	  double weight_n = 0.5/(n_aug_+lambda_);
 	  weights_(0) = weight_0;
@@ -234,7 +234,9 @@ void UKF::SetTargetPoint(const double timestep)
   double v = x_(2);
   double yaw = x_(3);
   double yawd = x_(4);
-
+  
+  //TODO +pi,-pi control here?
+  
   //predicted state values
   double px_p, py_p;
   //avoid division by zero
@@ -267,20 +269,8 @@ void UKF::Prediction(const double delta_t) {
   */
 
   //-----------------------//
-  // General Sigma points  //
-  //-----------------------//
-  lambda_ = 3 - n_x_;
-  MatrixXd Xsig = MatrixXd(n_x_, 2 * n_x_ + 1);
-  MatrixXd A = P_.llt().matrixL();
-  MatrixXd sigma_p = MatrixXd(n_x_,n_x_);
-  sigma_p = sqrt(lambda_ + n_x_) * A.array();
-  Xsig << x_.array(),(sigma_p.colwise() +  x_).array(),((-sigma_p).colwise() +  x_).array();
-
-  //-----------------------//
   // Augment sigma points  //
   //-----------------------//
-
-  lambda_ = 3 - n_aug_;
   // Augmented mean vector
   VectorXd x_aug = VectorXd(n_aug_);
 
@@ -302,9 +292,9 @@ void UKF::Prediction(const double delta_t) {
   P_aug(n_x_+1,n_x_+1) = std_yawdd_*std_yawdd_; //fill angular acceleration variance
 
   // Compute X augment sigma points
-  A = P_aug.llt().matrixL();
+  MatrixXd A = P_aug.llt().matrixL();
   //create augmented sigma points
-  sigma_p = MatrixXd(n_aug_,n_aug_);
+  MatrixXd sigma_p = MatrixXd(n_aug_,n_aug_);
   sigma_p = sqrt(lambda_ + n_aug_) * A.array();
   Xsig_aug << x_aug.array(),(sigma_p.colwise() +  x_aug).array(),((-sigma_p).colwise() +  x_aug).array();
 
@@ -313,7 +303,7 @@ void UKF::Prediction(const double delta_t) {
   // the x = x + integral  x' dt model   //
   //------------------------------------ //
 
-  int index = 2*n_aug_+1;
+  const int index = 2*n_aug_+1;
   for (int i = 0; i< index; i++){
 	  //extract values for better readability
 	  double p_x = Xsig_aug(0,i);
@@ -346,11 +336,12 @@ void UKF::Prediction(const double delta_t) {
 	  px_p = px_p + 0.5*nu_a*delta_t*delta_t * cos(yaw);
 	  py_p = py_p + 0.5*nu_a*delta_t*delta_t * sin(yaw);
 	  v_p = v_p + nu_a*delta_t;
-	  //Check yaw_p within +pi,-pi ? (or we handle this later before the final prediction)
 	  yaw_p = yaw_p + 0.5*nu_yawdd*delta_t*delta_t;
-	  if(fabs(yaw_p) >  M_PI) yaw_p = fmod(yaw_p + M_PI, 2.*M_PI) - M_PI;
-
 	  yawd_p = yawd_p + nu_yawdd*delta_t;
+	  
+	  // we handle this later before the final prediction, othewise we 
+	  // need to keep normalising theta along the way
+	  //if(fabs(yaw_p) >  M_PI) yaw_p = NormaliseAngle(yaw_p);
 
 	  //write predicted sigma points
 	  Xsig_pred_(0,i) = px_p;
@@ -379,12 +370,14 @@ void UKF::Prediction(const double delta_t) {
 
   //predict state covariance matrix
   P.fill(0.0);
+  
   VectorXd x_diff = VectorXd(n_x_);           //state diff
   for (int i = 0; i < index; i++) {
     x_diff = Xsig_pred_.col(i) - x;
+    
     //+pi,-pi
-    if(fabs(x_diff(3)) >  M_PI) x_diff(3) = fmod(x_diff(3) + M_PI, 2.*M_PI) - M_PI;
-
+    if(fabs(x_diff(3)) >  M_PI) x_diff(3) = NormaliseAngle(x_diff(3));
+    
     P = P + weights_(i) * x_diff * x_diff.transpose();
   }// end for
 
@@ -410,7 +403,7 @@ double UKF::UpdateMeasurements(const MeasurementPackage &meas_package, int n_z, 
   //   Measurement Update & return NIS      //
   // -------------------------------------- //
   //create matrix for sigma points in measurement space
-  int index = 2*n_aug_ + 1;
+  const int index = 2*n_aug_ + 1;
   MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
   //mapping Lidar or Radar measurement <*Zsig*> from Xsig_pred state
   mapping_func(meas_package, index, Xsig_pred_, Zsig);
@@ -527,8 +520,8 @@ double UKF::UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorX
 	x_diff = Xsig_pred_.col(i) - x_;         // x_ is the state from the state prediction step
 
 	//+pi,-pi control
-	if(fabs(z_diff(1)) >  M_PI) z_diff(1) = fmod(z_diff(1) + M_PI, 2.*M_PI) - M_PI;
-	if(fabs(x_diff(3)) >  M_PI) x_diff(3) = fmod(x_diff(3) + M_PI, 2.*M_PI) - M_PI;
+	if(fabs(z_diff(1)) >  M_PI) z_diff(1) = NormaliseAngle(z_diff(1));
+	if(fabs(x_diff(3)) >  M_PI) x_diff(3) = NormaliseAngle(x_diff(3));
 
 	// compute S and Tc
 	S = S + weights_(i) * z_diff * z_diff.transpose();
@@ -549,8 +542,9 @@ double UKF::UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorX
 
   //measurement residual between the ACTUAL measuremennt and the PREDICTED ones
   z_diff = z - z_pred;
+  
   //+pi,-pi control
-  if(fabs(z_diff(1)) >  M_PI) z_diff(1) = fmod(z_diff(1) + M_PI, 2.*M_PI) - M_PI;
+  if(fabs(z_diff(1)) >  M_PI) z_diff(1) = NormaliseAngle(z_diff(1));
 
   //correct the predicted state mean and covariance matrix
   x_ = x_ + K * z_diff;
@@ -563,6 +557,12 @@ double UKF::UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorX
   return EE(0,0);                                     // return index 0,0
 }
 
-
+/**
+ * Convert angle to -pi to +pi range
+ * @param input: radian angle
+ */
+double UKF::NormaliseAngle(double theta){
+  return atan2(sin(theta),cos(theta));	
+}
 
 

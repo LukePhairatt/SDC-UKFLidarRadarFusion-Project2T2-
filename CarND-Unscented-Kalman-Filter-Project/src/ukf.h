@@ -9,10 +9,12 @@
 #include "tools.h"
 #include <functional>   // std::bind
 
-using Eigen::MatrixXd;
-using Eigen::VectorXd;
+using namespace Eigen;
+using namespace std::placeholders;
+using namespace std;
 
-const double DIV_ZERO_TOL_ = 0.0001;
+
+const double DIV_ZERO_TOL_ = 0.001;
 
 class UKF {
 public:
@@ -137,6 +139,9 @@ public:
    *        output: NIS
   */
   double UKFCorrection(const MatrixXd &Zsig, const MatrixXd &R, const VectorXd &z);
+  
+  double NormaliseAngle(double theta);
+  
 };
 
 #endif /* UKF_H */

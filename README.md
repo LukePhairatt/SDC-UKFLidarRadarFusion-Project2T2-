@@ -38,7 +38,7 @@ Passing the project requires obtaining RMSE values that are lower that the toler
 
 ```
 
-### UKF State Params###
+### UKF State Params ###
 **System State**
 ```sh
 	p_x  = x position
@@ -50,7 +50,7 @@ Passing the project requires obtaining RMSE values that are lower that the toler
 	nu_yawdd = angular acceleration(Augment)
 ```
 
-**Measurement**
+**Measurement**  
 _Radar Measurement_
 ```sh
 	rho = range measurement of a target

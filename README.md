@@ -32,7 +32,7 @@ Passing the project requires obtaining RMSE values that are lower that the toler
                    |  / range, range_dot
                    | /      (Radar)
                    |/ angle
-                   ------------> 
+                   ------------> x 
 		lidar: px,py
 		radar: range,range_dot,angle
 

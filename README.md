@@ -8,6 +8,7 @@ Self-Driving Car Engineer Nanodegree Program
 [image1]: ./Docs/RunAwayRobot.png "Runaway Robot"
 [image2]: ./Docs/SigmaGen.png "Sigma Point Generation"
 [image3]: ./Docs/PredictedMean.png "Predicted Mean"
+[image4]: ./Docs/Zpred.png "Predicted Measurement"
 [source1]: ./data/PathVis_in.py "log input check"
 [source2]: ./data/PathVis_out.py "log output check"
 
@@ -142,6 +143,7 @@ _Commpute the predicted mean and covariance (x, P)_
 
 
 **STEP 3-Measurement Correction:**
+![Predicted Meas][image4]
 
 _Compute the measurement prediction (Zsig) from the predicted sigma points(Xsig_pred)_
 
